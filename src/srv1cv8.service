@@ -1,0 +1,24 @@
+[Unit]
+Description=1C:Enterprise Server 
+After=network.target remote-fs.target nss-lookup.target
+Before=srv1cv8-ras.service
+
+[Service]
+Type=simple
+EnvironmentFile=<environment_file_placeholder>
+# Environment="LD_LIBRARY_PATH=<ld_path_placeholder>"
+
+ExecStart=/bin/sh -c 'LD_LIBRARY_PATH=<ld_path_placeholder> <ragent_path_placeholder>/ragent -d "<cluster_folder_placeholder>" <debug_placeholder>'
+
+KillSignal=SIGINT
+
+User=<user_placeholder>
+#Group=grp1cv8
+UMask=0002
+PermissionsStartOnly=true
+
+LimitCORE=infinity
+LimitNOFILE=16384
+
+[Install]
+WantedBy=multi-user.target

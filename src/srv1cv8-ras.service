@@ -1,0 +1,22 @@
+[Unit]
+Description=1C:Enterprise Remote Administration Server
+After=network.target remote-fs.target nss-lookup.target
+
+[Service]
+Type=simple
+# Environment="LD_LIBRARY_PATH=<ld_path_placeholder>"
+
+ExecStart=/bin/sh -c 'LD_LIBRARY_PATH=<ld_path_placeholder> <ras_path_placeholder>/ras cluster --port=<ras_port_placeholder>'
+
+
+KillSignal=SIGINT
+# Restart=always
+# RestartSec=5
+
+User=<user_placeholder>
+# Group=grp1cv8
+
+LimitCORE=infinity
+
+[Install]
+WantedBy=multi-user.target
