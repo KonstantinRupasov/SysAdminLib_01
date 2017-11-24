@@ -1,0 +1,20 @@
+version: 0.0.0.1
+command-type: platform-stop
+script-name: platform_stop.py
+external-values: []
+default-values:
+  test-mode: false
+  server-role: all
+  timeout: 10
+  try-count: 3
+  time-limit: 3600
+  clean-snccntx: true
+  clean-pfl: true
+  cluster-folder: C:\srvinfo
+  cluster-debug: False
+  dumps-folder: dumps
+  web-server: IIS
+  service-1c:
+    name: 1C:Enterprise 8.3 Server Agent (x86-64)
+  ras:
+    name: 1C:Enterprise 8.3 Remote Server

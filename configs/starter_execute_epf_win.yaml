@@ -1,0 +1,72 @@
+######## общая часть ########
+version: 0.0.0.1
+command-type: execute-epf-win
+script-name: execute_epf.py
+test-mode: false
+zone: production
+# Settings
+#время по истечении которого обновление, если не завершилось считается неуспешным и нужен
+time-limit: 3600
+#количество попыток повтора инертных операций (убить фоновые задания, убить сеансы)
+try-count: 3
+#пауза между повторами инертных операций (сек.)
+timeout: 180
+# 1C-clusters
+1C-clusters:
+  - &1cfreshl
+    host: 10.70.3.11
+    port: 1541
+    admin_username: adm
+    admin_pwd: 123123123
+  - &ubuntu-srvr-1
+    host: 10.70.5.103
+    port: 1541
+    admin_username: ""
+    admin_pwd: ""
+# Infobases
+infobases:
+  - &TestIB
+    cluster: *1cfreshl
+    name: test_ibase
+    username: ""
+    pwd: ""
+  - &TestCenter
+    cluster: *1cfreshl
+    name: test_center_1
+    username: ""
+    pwd: ""
+  - &WorkInServiceModel
+    cluster: *1cfreshl
+    name: work_in_service_model_demo
+    username: adm
+    pwd: 123123123
+  - &SM-UbuntuServer1
+    cluster: *ubuntu-srvr-1
+    name: sm-ubuntu-srvr-1
+    username: adm
+    pwd: 111
+###### специфичная для группового запуска внешних обработок часть, которая #####
+###### может генерироваться и добавляться к общей части на ходу            #####
+scenario-meta-data:
+  defaults: {}
+scenario-data-sets:
+  - command: TCLaunchTest
+    epf-path: C:\Users\Kononov_A\Desktop\обработки\ТЦЛинейноеВыполнение.epf
+    ib: !getvalue [*TestIB, name]
+    srvr: !join [!getvalue [*TestIB, cluster, host], ":", !getvalue [*TestIB, cluster, port]]
+  - command: TCLaunchTest
+    epf-path: C:\Users\Kononov_A\Desktop\обработки\ТЦЛинейноеВыполнениеСОшибкой.epf
+    ib: !getvalue [*TestIB, name]
+    srvr: !join [!getvalue [*TestIB, cluster, host], ":", !getvalue [*TestIB, cluster, port]]
+  - command: TCLaunchTest
+    epf-path: C:\Users\Kononov_A\Desktop\обработки\ТЦЛинейноеВыполнениеСОшибкой.epf
+    ib: !getvalue [*WorkInServiceModel, name]
+    srvr: !join [!getvalue [*WorkInServiceModel, cluster, host], ":", !getvalue [*WorkInServiceModel, cluster, port]]
+    usr: !getvalue [*WorkInServiceModel, username]
+    pwd: !getvalue [*WorkInServiceModel, pwd]
+  - command: TCLaunchTest
+    epf-path: C:\Users\Kononov_A\Desktop\обработки\ТЦЛинейноеВыполнениеСОшибкой.epf
+    ib: !getvalue [*SM-UbuntuServer1, name]
+    srvr: !join [!getvalue [*SM-UbuntuServer1, cluster, host], ":", !getvalue [*SM-UbuntuServer1, cluster, port]]
+    usr: !getvalue [*SM-UbuntuServer1, username]
+    pwd: !getvalue [*SM-UbuntuServer1, pwd]

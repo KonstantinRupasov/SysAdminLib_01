@@ -1,0 +1,104 @@
+platform-update-win:
+  config-name: platform_update_win.yaml
+  script-name: platform_update.py
+  first-version: 0.0.0.1
+  last-version: 1.0.0.1
+  exclude-versions:
+    - 0.0.0.2
+    - 0.0.0.9
+platform-update-deb:
+  config-name: platform_update_deb.yaml
+  script-name: platform_update.py
+  first-version: 0.0.0.1
+  last-version: 1.0.0.1
+  exclude-versions:
+    - 0.0.0.2
+    - 0.0.0.9
+platform-update-rpm:
+  config-name: platform_update_rpm.yaml
+  script-name: platform_update.py
+  first-version: 0.0.0.1
+  last-version: 1.0.0.1
+  exclude-versions:
+    - 0.0.0.2
+    - 0.0.0.9
+platform-start-win:
+  config-name: platform_ctl_win.yaml
+  script-name: platform_start.py
+  first-version: 0.0.0.1
+  last-version: 1.0.0.1
+  exclude-versions:
+    - 0.0.0.2
+    - 0.0.0.9
+platform-start-linux:
+  config-name: platform_ctl_linux.yaml
+  script-name: platform_start.py
+  first-version: 0.0.0.1
+  last-version: 1.0.0.1
+  exclude-versions:
+    - 0.0.0.2
+    - 0.0.0.9
+platform-restart-win:
+  config-name: platform_ctl_win.yaml
+  script-name: platform_restart.py
+  first-version: 0.0.0.1
+  last-version: 1.0.0.1
+  exclude-versions:
+    - 0.0.0.2
+    - 0.0.0.9
+platform-restart-linux:
+  config-name: platform_ctl_linux.yaml
+  script-name: platform_restart.py
+  first-version: 0.0.0.1
+  last-version: 1.0.0.1
+  exclude-versions:
+    - 0.0.0.2
+    - 0.0.0.9
+platform-stop-win:
+  config-name: platform_ctl_win.yaml
+  script-name: platform_stop.py
+  first-version: 0.0.0.1
+  last-version: 1.0.0.1
+  exclude-versions:
+    - 0.0.0.2
+    - 0.0.0.9
+platform-stop-linux:
+  config-name: platform_ctl_linux.yaml
+  script-name: platform_stop.py
+  first-version: 0.0.0.1
+  last-version: 1.0.0.1
+  exclude-versions:
+    - 0.0.0.2
+    - 0.0.0.9
+execute-epf-win:
+  config-name: execute_epf_win.yaml
+  script-name: execute_epf.py
+  first-version: 0.0.0.1
+  last-version: 1.0.0.1
+  exclude-versions:
+    - 0.0.0.2
+    - 0.0.0.9
+execute-epf-linux:
+  config-name: execute_epf_linux.yaml
+  script-name: execute_epf.py
+  first-version: 0.0.0.1
+  last-version: 1.0.0.1
+  exclude-versions:
+    - 0.0.0.2
+    - 0.0.0.9
+update-1c-conf-linux:
+  config-name: update_1c_conf_linux.yaml
+  script-name: update_1c_conf.py
+  first-version: 0.0.0.1
+  last-version: 1.0.0.1
+  exclude-versions:
+    - 0.0.0.2
+    - 0.0.0.9
+update-1c-conf-win:
+  config-name: update_1c_conf_win.yaml
+  script-name: update_1c_conf.py
+  first-version: 0.0.0.1
+  last-version: 1.0.0.1
+  exclude-versions:
+    - 0.0.0.2
+    - 0.0.0.9

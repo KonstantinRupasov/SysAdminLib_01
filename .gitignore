@@ -11,7 +11,6 @@ TAGS
 *.el
 backups/
 *.log
-# *.yaml
 *.pid
 temp/
 script_logs/
@@ -19,7 +18,7 @@ cifs*
 .idea/
 format_code.sh
 calc_hash.py
-*.yaml
+# *.yaml
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

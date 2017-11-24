@@ -1,0 +1,34 @@
+version: 0.0.0.1
+command-type: platform-update
+script-name: platform-update.py
+external-values:
+  - new-version
+default-values:
+  server-role: app
+  test-mode: false
+  zone: production
+  old-version: ""
+  distr-folder: \\KONONOV-AI\shared\AutomationLibraryDemo\1c_distr\win_arch\full\i386
+  setup-folder: C:\Platform1C\Actual
+  timeout: 120
+  try-count: 3
+  time-limit: 3600
+  clean-snccntx: true
+  clean-temp: true
+  clean-pfl: true
+  download-tmp-folder: C:\temp_win
+  cluster-folder: C:\srvinfo
+  cluster-debug: False
+  dumps-folder: dumps
+  service-1c:
+    name: 1C:Enterprise 8.3 Server Agent (x86-64)
+    login: adm
+    password: "123123123"
+  ras:
+    name: 1C:Enterprise 8.3 Remote Server
+    path: C:\Platform1C\Actual
+    port: 4540
+    login: Admin
+    password: 123123123
+  web-library:
+    path: C:\Platform1C\Actual\bin\wsisapi.dll

@@ -1,0 +1,18 @@
+version: 0.0.0.1
+command-type: execute-epf
+script-name: execute-epf.py
+external-values:
+  - srvr
+  - ib
+  - epf-path
+  - command
+default-values:
+  usr: ""
+  pwd: ""
+  test-mode: false
+  zone: production
+  try-count: 1
+  timeout: 100
+  time-limit: 3600
+  lang: ru
+  client-path: C:\Program Files (x86)\1cv8\8.3.10.2466\bin

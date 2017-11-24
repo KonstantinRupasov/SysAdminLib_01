@@ -1,0 +1,28 @@
+version: 0.0.0.1
+command-type: platform-stop
+script-name: platform_stop.py
+external-values: []
+default-values:
+  test-mode: false
+  server-role: app
+  timeout: 10
+  try-count: 3
+  time-limit: 3600
+  clean-snccntx: true
+  clean-temp: true
+  clean-pfl: true
+  cluster-folder: ""
+  cluster-debug: False
+  dumps-folder: dumps
+  service-1c:
+    name: srv1cv8
+    login: srv1C
+    password: qwaszx
+  ras:
+    name: srv1cv8-ras
+    path: /opt/1C/v8.3/x86_64
+    port: 4540
+    login: srv1C
+    password: qwaszx
+  web-library:
+    path: /opt/1C/v8.3/x86_64/wsap24.so

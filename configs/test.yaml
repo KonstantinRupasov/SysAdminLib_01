@@ -1,0 +1,64 @@
+version: 0.0.0.1
+command-type: execute-epf
+script-name: execute_epf.py
+test-mode: false
+zone: production
+time-limit: 3600
+try-count: 3
+timeout: 10
+1C-clusters:
+  - &1cfreshl
+    host: 10.70.3.11
+    port: 1541
+    admin_username: adm
+    admin_pwd: 123123123
+  - &ubuntu-srvr-1
+    host: 10.70.5.103
+    port: 1541
+    admin_username: ""
+    admin_pwd: ""
+infobases:
+  - &TestIB
+    cluster: *1cfreshl
+    name: test_ibase
+    username: ""
+    pwd: ""
+  - &TestCenter
+    cluster: *1cfreshl
+    name: test_center_1
+    username: ""
+    pwd: ""
+  - &WorkInServiceModel
+    cluster: *1cfreshl
+    name: work_in_service_model_demo
+    username: adm
+    pwd: 123123123
+  - &SM-UbuntuServer1
+    cluster: *ubuntu-srvr-1
+    name: sm-ubuntu-srvr-1
+    username: adm
+    pwd: 111
+scenario-data-meta:
+  command: execute-epf-win
+  defaults:
+    command: TCLaunchTest
+scenario-data-sets:
+  - epf-path: C:\Users\Kononov_A\Desktop\обработки\ТЦЛинейноеВыполнение.epf
+    ib: !getvalue [*TestIB, name]
+    srvr: !join [!getvalue [*TestIB, cluster, host], ":", !getvalue [*TestIB, cluster, port]]
+  - command: TCLaunchTest
+    epf-path: C:\Users\Kononov_A\Desktop\обработки\ТЦЛинейноеВыполнениеСОшибкой.epf
+    ib: !getvalue [*TestIB, name]
+    srvr: !join [!getvalue [*TestIB, cluster, host], ":", !getvalue [*TestIB, cluster, port]]
+  - command: TCLaunchTest
+    epf-path: C:\Users\Kononov_A\Desktop\обработки\ТЦЛинейноеВыполнениеСОшибкой.epf
+    ib: !getvalue [*WorkInServiceModel, name]
+    srvr: !join [!getvalue [*WorkInServiceModel, cluster, host], ":", !getvalue [*WorkInServiceModel, cluster, port]]
+    usr: !getvalue [*WorkInServiceModel, username]
+    pwd: !getvalue [*WorkInServiceModel, pwd]
+  - command: TCLaunchTest
+    epf-path: C:\Users\Kononov_A\Desktop\обработки\ТЦЛинейноеВыполнениеСОшибкой.epf
+    ib: !getvalue [*SM-UbuntuServer1, name]
+    srvr: !join [!getvalue [*SM-UbuntuServer1, cluster, host], ":", !getvalue [*WorkInServiceModel, cluster, port]]
+    usr: !getvalue [*SM-UbuntuServer1, username]
+    pwd: !getvalue [*SM-UbuntuServer1, pwd]

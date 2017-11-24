@@ -1,0 +1,19 @@
+version: 0.0.0.1
+command-type: execute-epf
+script-name: execute-epf.py
+external-values:
+  - srvr
+  - ib
+  - cf-name
+  - distr-folder
+default-values:
+  usr: ""
+  pwd: ""
+  test-mode: false
+  zone: production
+  try-count: 1
+  timeout: 100
+  time-limit: 3600
+  lang: ru
+  client-path: /opt/1C/v8.3/x86_64/
+  backup-folder: ../1c_backups/
