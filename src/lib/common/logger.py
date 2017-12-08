@@ -306,36 +306,43 @@ class LogFunc:
     def __init__(self, print_begin=None, print_uuid=None,
                  print_function=None, **kwargs):
         # setting print_* variables
-        if print_begin is None:
-            print_begin = gv.PRINT_BEGIN
-        if print_uuid is None:
-            print_uuid = gv.PRINT_UUID
-        if print_function is None:
-            print_function = gv.PRINT_FUNCTION
+        self.print_begin = print_begin if print_begin is not None \
+                           else gv.PRINT_BEGIN
+        self.print_uuid = print_uuid if print_uuid is not None \
+                           else gv.PRINT_UUID
+        self.print_function = print_function if print_function is not None \
+                           else gv.PRINT_FUNCTION
         # save kwargs
         self.kwargs = kwargs
         # save operation UUID
         self.op_uuid = global_logger.start_operation()
         # if print_{uuid, function} is True, then save corresponded value to
         # kwargs
-        if print_uuid:
+        if self.print_uuid:
             self.kwargs["uuid"] = self.op_uuid
-        if print_function:
+        if self.print_function:
             self.kwargs["function"] = inspect.stack()[1][3] \
                                       if len(inspect.stack()) > 2 \
                                       else inspect.stack()[0][3]
         # if print_begin is set, record beginning of operation
-        if print_begin:
+        if self.print_begin:
             global_logger.info(state="begin", **self.kwargs)
 
     ## Destructor.
     # @param self Pointer to object.
     def __del__(self):
         time = global_logger.finish_operation(self.op_uuid)
-        global_logger.info(
-            duration=int(time.microseconds * 10**-3 + time.seconds * 10**3),
-            **self.kwargs
-        )
+        if self.print_begin:
+            global_logger.info(
+                duration=int(time.microseconds * 10**-3 + time.seconds * 10**3),
+                state="end",
+                **self.kwargs
+            )
+        else:
+            global_logger.info(
+                duration=int(time.microseconds * 10**-3 + time.seconds * 10**3),
+                **self.kwargs
+            )
 
 
 def escape_log_string(string):

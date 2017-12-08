@@ -1,0 +1,50 @@
+version: 0.0.0.1
+external-values:
+  - new-version
+  - distr-folder
+  - web-server
+  - webext-path
+  - old-version
+default-values:
+  test-mode: false
+  time-limit: 3600
+  timeout: 0
+  try-count: 1
+  setup-folder: C:\Platform1C\Actual
+  tmp-folder: ~/1C/tmp
+  languages: RU,EN
+scenario:
+  # delete old platform block
+  - name: remove-old-platform
+    command: platform-remove
+    scenario-data:
+      setup-folder: <path:setup-folder>
+      version: <version:old-version>
+    rollback:
+      command: platform-install-with-webext
+      scenario-data:
+        version: <version:new-version>
+        platform-modules: web
+        distr-folder: <path:distr-folder>
+        setup-folder: <path:setup-folder>
+        download-tmp-folder: <path:tmp-folder>
+        languages: <languages>
+        web-extension/web-server: <web-server>
+        web-extension/path: <path:webext-path>
+  # install new platform block
+  - name: install-new-platform
+    command: platform-install-with-webext
+    scenario-data:
+      version: <version:new-version>
+      platform-modules: web
+      distr-folder: <path:distr-folder>
+      setup-folder: <path:setup-folder>
+      download-tmp-folder: <path:tmp-folder>
+      languages: <languages>
+      web-extension/web-server: <web-server>
+      web-extension/path: <path:webext-path>
+    rollback:
+      command: platform-remove
+      scenario-data:
+        setup-folder: <path:setup-folder>
+        version: <version:old-version>

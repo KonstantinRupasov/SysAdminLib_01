@@ -10,14 +10,12 @@ error_table = [
     (3, "UNKNOWN_ERROR_CODE",
      "Such error ({}) not presented in table or code have invalid type ({})"),
     (4, "TIMEOUT_ERROR", "Timeout expired"),
-    (5, "PYTHON_INCOMPATIBLE_VERSION", "Incompatible version of Python"
+    (5, "INTERRUPTED", "Interrupted"),
+    (6, "PYTHON_INCOMPATIBLE_VERSION", "Incompatible version of Python"
      " interpreter. Minimum required: 3.4.3,value={}"),
-    (6, "ARGS_ERROR", "Arguments error: {}"),
-    (7, "CMD_RESULT_ERROR", "External utility returned non-successful code"),
-    (8, "ROLLBACK_ERROR", "Error occurred on rollback scenario"),
-
-
-    # system errors
+    (7, "ARGS_ERROR", "Arguments error: {}"),
+    (8, "CMD_RESULT_ERROR", "External utility returned non-successful code"),
+    (9, "ROLLBACK_ERROR", "Error occurred on rollback scenario"),
     (10, "FILE_NOT_EXIST", "File not exist,path={}"),
     (11, "FILE_PERM_DENIED", "File: permission denied,path={}"),
     (12, "YAML_PROBLEM_MARK",
@@ -31,6 +29,7 @@ error_table = [
     (18, "INSTALL_ERROR", "Installation error: {}"),
     (19, "BROWSER_ERROR", "Error while browsing site: {}"),
     (20, "NOT_JSON", "Content is not JSON document"),
+    (21, "CONFIG_ERROR", "Configuration error: {}"),
 
     #config errors
     (30, "NO_ARCHITECTURE", "Unable to detect platform arch"),

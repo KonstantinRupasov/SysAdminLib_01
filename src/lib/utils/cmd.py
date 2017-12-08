@@ -45,9 +45,14 @@ def run_cmd(args, shell=False, timeout=None):
         global_logger.debug(args=process.args, pid=process.pid)
         try:
             stdout, stderr = process.communicate(timeout=timeout)
+            global_logger.debug(message="Process result", args=process.args,
+                                pid=process.pid, stdout=stdout, stderr=stderr)
         except sp.TimeoutExpired:
             process.kill()
             stdout, stderr = process.communicate()
+            print(stdout, stderr)
+            global_logger.debug(message="Process result", args=process.args,
+                                pid=process.pid, stdout=stdout, stderr=stderr)
             raise sp.TimeoutExpired(process.args, timeout, output=stdout,
                                  stderr=stderr)
         except Exception as err:

@@ -6,6 +6,10 @@ import time
 from .common.config import *
 from .utils import *
 
+
+SERVICE_CONTROL_DELAY = 10
+
+
 class PlatformCtlScenario:
     ## Constructor.
     # @param self Pointer to object.
@@ -17,11 +21,13 @@ class PlatformCtlScenario:
         self.services = list()
         self.config = config
         self.action = action
+        self.ServiceCls = None
+        self.WebServiceCls = None
         # validate configuration
         self.validate_config()
         # set global test mode variable
         gv.TEST_MODE = self.config["test-mode"]
-        # fill list of services
+        # fill list of services names
         self.config["services"] = list()
         if self.config["server-role"] != "web":
             self.config["services"].append(self.config["service-1c"]["name"])
@@ -65,16 +71,13 @@ class PlatformCtlScenario:
         validate_data = [
             ["server-role", str, str, ["all", "app", "web"]],
             ["test-mode", bool],
-            ["try-count", int],
-            ["timeout", int],
+            # ["try-count", int],
+            # ["timeout", int],
             ["time-limit", int],
             ["os-type", str, str, ["Windows", "Linux-deb", "Linux-rpm"]],
         ]
         if self.action != "start":
             validate_data += [
-                ["clean-snccntx", bool],
-                ["clean-pfl", bool],
-                ["cluster-folder", StrPathExpanded],
                 ["dumps-folder", StrPathExpanded],
             ]
         if self.config["server-role"] in ["app", "all"]:
@@ -88,26 +91,22 @@ class PlatformCtlScenario:
             ]
         self.config.validate(validate_data)
 
-    ## Wrapper for retry_func, which passes automatically self, timeout and
-    #  try_count
-    # @param self Pointer to object.
-    # @param func Function to execute.
-    # @param *args Positional arguments for func.
-    # @param **kwargs Named arguments for func.
-    def retry_self(self, func, *args, **kwargs):
-        return retry_func(func, args=(self, ) + args, kwargs=kwargs,
-                          timeout=self.config["timeout"],
-                          try_count=self.config["try-count"])
+    def _connect_services(self):
+        for service in self.services:
+            service.connect()
 
-    ## Wrapper for retry_func, which passes automatically timeout and try_count
-    # @param self Pointer to object.
-    # @param func Function to execute.
-    # @param *args Positional arguments for func.
-    # @param **kwargs Named arguments for func.
-    def retry(self, func, *args, **kwargs):
-        return retry_func(func, args=args, kwargs=kwargs,
-                          timeout=self.config["timeout"],
-                          try_count=self.config["try-count"])
+    def tests(self):
+        l = LogFunc(message="Running tests")
+        avaliable_tests = [
+            ("test-sc-permissions", self.ServiceCls.test_sc_permissions, False),
+            ("check-services-existence", self._connect_services, True)
+        ]
+        # execute tests
+        for name, test, standalone_only in avaliable_tests:
+            if not self.config["standalone"] and standalone_only:
+                global_logger.info(message="Omitting test", name=name)
+                continue
+            test()
 
     ## Preparation actions before actual start/stop platform.
     # @param self Pointer to object.
@@ -115,40 +114,33 @@ class PlatformCtlScenario:
         l = LogFunc(message="preparing to platform ctl action",
                     action=self.action)
         # choose service class
-        ServiceCls = None
         if self.config["os-type"] == "Windows":
             from .win_utils.service import Service, IISService
-            ServiceCls = Service
-            IISServiceCls = IISService
+            self.ServiceCls = Service
+            self.WebServiceCls = IISService
         else:
             from .linux_utils.service import SystemdService
-            ServiceCls = SystemdService
-        # 1. Testing access to service control
-        self.retry(ServiceCls.test_sc_permissions)
-        # 2. Create ServiceCls objects
+            self.ServiceCls = SystemdService
+            self.WebServiceCls = SystemdService
+        # create ServiceCls objects
         self.services = list()
         for service_name in self.config["services"]:
             if self.config["os-type"] == "Windows" and \
                service_name.upper() == "IIS":
-                self.services.append(IISServiceCls())
+                self.services.append(self.WebServiceCls())
             else:
-                self.services.append(ServiceCls(service_name))
-            self.services[-1].connect()
+                self.services.append(self.ServiceCls(service_name))
 
     ## Start platform.
     # @param self Pointer to object.
     def start(self):
         l = LogFunc(message="starting 1C:Enterprise Platform")
-        # If set test-mode, finish execution
-        if self.config["test-mode"] is True:
-            global_logger.info("Test mode completed successfully")
-            return
         # 3. Start services
         for service in self.services:
-            self.retry(service.start)
+            service.start()
         # 4. Check services started after timeout
         global_logger.info(message="Give services time to start...")
-        time.sleep(self.config["timeout"])
+        time.sleep(SERVICE_CONTROL_DELAY)
         for service in self.services:
             if not service.started:
                 raise AutomationLibraryError("SERVICE_ERROR",
@@ -159,20 +151,16 @@ class PlatformCtlScenario:
     # @param self Pointer to object.
     def stop(self):
         l = LogFunc(message="stopping 1C:Enterprise Platform")
-        # If set test-mode, finish execution
-        if self.config["test-mode"] is True:
-            global_logger.info("Test mode completed successfully")
-            return
         # 3. Stop services gracefully
         for service in self.services:
-            self.retry(service.stop)
+            service.stop()
         # 4. Check services stopped. If not, kill their processes.
         global_logger.info(message="Give services time to stop...")
-        time.sleep(self.config["timeout"])
+        time.sleep(SERVICE_CONTROL_DELAY)
         for service in self.services:
             if service.started:
                 service.stop(True)
-                time.sleep(self.config["timeout"])
+                time.sleep(SERVICE_CONTROL_DELAY)
                 if service.started:
                     raise AutomationLibraryError("SERVICE_ERROR",
                                                  "service not stopped",
@@ -185,6 +173,20 @@ class PlatformCtlScenario:
         if action is None:
             action = self.action
         self.prepare()
+        # make tests
+        # if standalone, execute tests even if test-mode not set
+        if self.config["standalone"]:
+            self.tests()
+            if self.config["test-mode"] is True:
+                global_logger.info("Test mode completed successfully")
+                return
+        # otherwise, execute tests only if test-mode set
+        else:
+            if self.config["test-mode"] is True:
+                self.tests()
+                global_logger.info("Test mode completed successfully")
+                return
+        self._connect_services()
         if action == "start":
             self.start()
         elif action == "stop":

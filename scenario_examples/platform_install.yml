@@ -1,0 +1,13 @@
+version: 0.0.0.1
+external-values:
+  - version
+  - distr-folder
+  - download-tmp-folder
+  - platform-modules
+default-values:
+  test-mode: false
+  time-limit: 3600
+  timeout: 0
+  try-count: 1
+  # this value can be set even on linux, but will be ignored.
+  setup-folder: C:\Platform1C\Actual

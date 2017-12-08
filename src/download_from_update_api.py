@@ -232,7 +232,7 @@ class DownloadFromUpdateApiScenario:
         gv.CONFIG = self.config
         # log self.configuration
         global_logger.debug("Scenario data: " + str(self.config))
-
+        self.upgrade_sequence = None
 
     ## Validating config.
     # @param self Pointer to object.
@@ -241,8 +241,8 @@ class DownloadFromUpdateApiScenario:
     def validate_config(self):
         validate_data = [
             ["test-mode", bool],
-            ["try-count", int],
-            ["timeout", int],
+            # ["try-count", int],
+            # ["timeout", int],
             ["time-limit", int],
             ["configuration-name", str],
             ["current-version", str],
@@ -251,16 +251,11 @@ class DownloadFromUpdateApiScenario:
             ["username", str],
             ["password", str],
             ["additional-parameters", dict],
+            ["standalone", bool],
         ]
         self.config.validate(validate_data)
 
-    ## Execute scenario.
-    # @param self Pointer to object.
-    def execute(self):
-        l = LogFunc(message="Downloading configuration update from update-api",
-                    config_name=self.config["configuration-name"],
-                    current_version=self.config["current-version"],
-                    dst=self.config["download-folder"])
+    def set_upgrade_sequence(self):
         # Info request, which should return list of updates (at least one),
         # otherwise consider it as error
         info_response = info_request(
@@ -274,8 +269,61 @@ class DownloadFromUpdateApiScenario:
             self.config["username"], self.config["password"],
             self.config["additional-parameters"]
         )
+        self.upgrade_sequence = files_response \
+            .json()["configurationUpdateDataList"]
+
+    def _check_folders(self):
+        pass
+
+    def _check_upgrade_sequence(self):
+        self.set_upgrade_sequence()
+        for entry in self.upgrade_sequence:
+            response = requests.get(
+                url = entry["updateFileUrl"], stream=True,
+                headers={"User-Agent": "1C+Enterprise/8.3"},
+                auth=(self.config["username"], self.config["password"])
+            )
+            if not response.ok:
+                raise AutomationLibraryError(
+                    "URL_ERROR", "response status code is not good",
+                    response_code=response.status_code,
+                    url=response.url
+                )
+
+    def tests(self):
+        l = LogFunc(message="Running tests")
+        avaliable_tests = [
+            ("check-folders", self._check_folders, False),
+            ("check-upgrade-sequence", self._check_upgrade_sequence, False),
+        ]
+        # execute tests
+        for name, test, standalone_only in avaliable_tests:
+            if not self.config["standalone"] and standalone_only:
+                global_logger.info(message="Omitting test", name=name)
+                continue
+            test()
+
+    ## Execute scenario.
+    # @param self Pointer to object.
+    def execute(self):
+        l = LogFunc(message="Downloading configuration update from update-api",
+                    config_name=self.config["configuration-name"],
+                    current_version=self.config["current-version"],
+                    dst=self.config["download-folder"])
+        if self.config["standalone"]:
+            self.tests()
+            if self.config["test-mode"] is True:
+                global_logger.info("Test mode completed successfully")
+                return
+        else:
+            if self.config["test-mode"] is True:
+                self.tests()
+                global_logger.info("Test mode completed successfully")
+                return
+        if self.upgrade_sequence is None:
+            self.set_upgrade_sequence()
         # download each file
-        for entry in files_response.json()["configurationUpdateDataList"]:
+        for entry in self.upgrade_sequence:
             download_and_extract_update(
                 entry, self.config["download-folder"],
                 self.config["username"], self.config["password"],
@@ -294,6 +342,17 @@ def download_from_update_api_scenario():
         cmd_args = bootstrap.parse_cmd_args(sys.argv[2:])
         config.add_cmd_args(cmd_args[1], True)
         bootstrap.set_debug_values(cmd_args[1])
+        if "composite-scenario-name" in config:
+            global_logger.info(
+                message="Execute as part of composite scenario",
+                composite_scenario_name=config["composite-scenario-name"]
+            )
+            config["standalone"] = False
+        else:
+            global_logger.info(
+                message="Execute as standalone scenario"
+            )
+            config["standalone"] = True
         scenario = DownloadFromUpdateApiScenario(config)
         scenario.execute()
     # handle errors (ie log them and set return code)

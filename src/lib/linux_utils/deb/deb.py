@@ -20,23 +20,23 @@ class PackageName:
     # @param name Middle part of name.
     # @param version Package version. Can be string or
     #  lib::utils::main::PlatformVersion object.
-    # @param bitness Package bitness (64 or 32).
+    # @param arch Package arch (64 or 32).
     # @param prefix Prefix to name. By default:
     #  "1c-enterprise{PLATFORM_MAJOR_VERSION}{PLATFORM_MINOR_VERSION}-"
-    def __init__(self, prefix, name, version, bitness):
+    def __init__(self, prefix, name, version, arch):
         self.name = name
         self.version = version if isinstance(version, PlatformVersion) else \
             PlatformVersion(version)
         self.prefix = "1c-enterprise{}{}-".format(*self.version.version[0:2]) \
                       if prefix is None else prefix
-        self.bitness = "amd64" if bitness == 64 else "i386"
+        self.arch = "amd64" if arch == 64 else "i386"
 
     ## String representation of object.
     # @param self Pointer to object.
     def __str__(self):
         return "{}{}_{}_{}.deb".format(self.prefix, self.name,
                                        self.version.str_linux(),
-                                       self.bitness)
+                                       self.arch)
 
     ## Debug representation of object.
     # @param self Pointer to object.
@@ -59,7 +59,7 @@ def install_package(path, simulate=False, force=True):
     try:
         res = run_cmd("dpkg -i {} {} {}".format(forces, simulate_str,
                                                 path),
-                      timeout=gv.CONFIG["timeout"], shell=True)
+                      shell=True)
         global_logger.debug("package installation",
                             returncode=res.returncode,
                             stdout=res.stdout.decode(gv.ENCODING),
@@ -85,7 +85,7 @@ def uninstall_package(name, simulate=False, force=True):
     try:
         res = run_cmd("dpkg -r {} {} {}".format(forces, simulate_str,
                                                 name),
-                      timeout=gv.CONFIG["timeout"], shell=True)
+                      shell=True)
     except sp.TimeoutExpired as err:
         raise AutomationLibraryError("TIMEOUT_ERROR")
     else:
@@ -150,12 +150,12 @@ def find_package_installed(name):
 
 
 ## Getting installed platform version.
-# @param config dict or dict-like object with "old-version" and "bitness" values.
+# @param config dict or dict-like object with "old-version" and "arch" values.
 # @return lib::utils::main::PlatformVersion object.
 def get_installed_platform_version(config):
     package_name = PackageName(
         None, "common", config["old-version"],
-        config["bitness"]
+        config["arch"]
     )
     package_name = package_name.prefix + package_name.name
     return PlatformVersion(find_package_installed(package_name))
@@ -168,7 +168,6 @@ def get_installed_platform_packages():
     res = run_cmd(
         "dpkg-query -W -f='${binary:Package}\\t${Architecture}\\t${Version}\\t\\n' "
         "'1c-enterprise*' | grep -e 'enterprise[0-9]\\{1,\\}'", shell=True,
-        timeout=gv.CONFIG["timeout"]
     )
     # if query returned nothing, return empty list
     if res.returncode != 0:
@@ -198,7 +197,7 @@ def uninstall_packages(packages, simulate=False, force=True):
     try:
         res = run_cmd("dpkg -P {} {} {}".format(forces, simulate_str,
                                                 packages_str),
-                      timeout=gv.CONFIG["timeout"], shell=True)
+                      shell=True)
     except sp.TimeoutExpired as err:
         raise AutomationLibraryError("TIMEOUT_ERROR")
     else:

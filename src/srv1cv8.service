@@ -1,18 +1,16 @@
 [Unit]
-Description=1C:Enterprise Server 
+Description=<description>
 After=network.target remote-fs.target nss-lookup.target
-Before=srv1cv8-ras.service
 
 [Service]
 Type=simple
-EnvironmentFile=<environment_file_placeholder>
-# Environment="LD_LIBRARY_PATH=<ld_path_placeholder>"
+EnvironmentFile=<environment_file>
 
-ExecStart=/bin/sh -c 'LD_LIBRARY_PATH=<ld_path_placeholder> <ragent_path_placeholder>/ragent -d "<cluster_folder_placeholder>" <debug_placeholder>'
+ExecStart=/bin/sh -c 'LD_LIBRARY_PATH=<ld_path> <ragent_path>/ragent -d "<cluster_folder>" -port <port> -regport <regport> -range <range> <debug>'
 
 KillSignal=SIGINT
 
-User=<user_placeholder>
+User=<user>
 #Group=grp1cv8
 UMask=0002
 PermissionsStartOnly=true

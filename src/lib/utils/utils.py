@@ -7,6 +7,7 @@ import platform
 import re
 import shutil
 import yaml
+import sys
 from distutils.dir_util import copy_tree, remove_tree
 from multiprocessing import Process, Queue
 from itertools import islice
@@ -98,121 +99,25 @@ class PlatformVersion:
         return False
 
 
-## This is a function which act as main in new process,
-# spawned by multiprocessing.
-# @param queue Queue object.
-# @param func Function to execute.
-# @param *args Positional arguments for func.
-# @param **kwargs Named arguments for func.
-def child_main_wrapper(queue, func, *args, **kwargs):
-    log_output = io.StringIO()
-    try:
-        # create temporally storage for log records and add it to logger
-        global_logger.remove_outputs()
-        global_logger.add_stream_handler(log_output)
-        # execute func with args and kwargs
-        res = func(*args, **kwargs)
-        # put function's return value and log content to queue
-        queue.put(res)
-        queue.put(log_output.getvalue())
-    # if exception raised somewhere inside func, put it and log content to queue
-    except AutomationLibraryError as err:
-        queue.put(err.serialize())
-        queue.put(log_output.getvalue())
-    except Exception as err:
-        queue.put(err)
-        queue.put(log_output.getvalue())
-
-
-## Run function in a separate process via multiprocessing.
-# @param func Function to execute.
-# @param args tuple of positional arguments for func.
-# @param kwargs dict of named arguments for func.
-# @param timeout Timeout for function execution.
-# @return Value, that returned from func.
-# @exception TimeoutError Raised if timeout exceeded.
-# @exception Exception Raised if func raised exception.
-def mp_main(func, args=(), kwargs={}, timeout=gv.CONFIG["timeout"]):
-    queue = Queue()
-    process = Process(target=child_main_wrapper, args=(queue, func) + args,
-                      kwargs=kwargs)
-    try:
-        process.start()
-        process.join(timeout)
-        if process.is_alive() is True:
-            process.terminate()
-            raise TimeoutError
-        res = queue.get()
-        log_output = queue.get()
-        if log_output != "":
-            global_logger.print_raw_text(log_output)
-        if isinstance(res, list) and res[0] == "AutomationLibrary":
-            raise AutomationLibraryError.deserialize(res)
-        elif isinstance(res, Exception):
-            print("raising exception", res)
-            raise res
-        else:
-            return res
-    except TimeoutError:
-        raise AutomationLibraryError("TIMEOUT_ERROR")
-    except Exception:
-        raise
-
-
-## Retry function execution.
-# @param func Function to execute.
-# @param try_count Number of attempts.
-# @param timeout Time on attempt.
-# @param args tuple of positional arguments for func.
-# @param kwargs dict of named arguments for func.
-# @return Value, that returned from func.
-# @exception TimeoutError Raised if timeout exceeded.
-# @exception Exception Raised if func raised exception.
-def retry_func(func, try_count=3, timeout=10, args=(), kwargs={}):
-    for attempt in range(try_count - 1, -1, -1):
-        try:
-            res = mp_main(func, args, kwargs, timeout)
-        except Exception as err:
-            if attempt > 0:
-                global_logger.info("retrying",reason=err, attempts_left=attempt)
-            else:
-                raise
-        else:
-            return res
-
-## Retry function execution (decorator).
-# @param func Function to execute.
-# @param try_count Number of attempts.
-# @param timeout Time on attempt.
-# @param args tuple of positional arguments for func.
-# @param kwargs dict of named arguments for func.
-# @return Value, that returned from func.
-# @exception TimeoutError Raised if timeout exceeded.
-# @exception Exception Raised if func raised exception.
-def retry_exc(try_count, timeout):
-    def real_decorator(func):
-        def wrapper(*args, **kwargs):
-            for attempt in range(try_count - 1, -1, -1):
-                try:
-                    res = mp_main(func, args, kwargs, timeout)
-                except Exception as err:
-                    if attempt > 0:
-                        global_logger.info("retrying",reason=err,
-                                           attempts_left=attempt)
-                    else:
-                        raise err
-                else:
-                    return
-        return wrapper
-    return real_decorator
-
-
 ## Dummy function.
 # @param *args Ignored.
 # @param **kwargs Ignored.
 # @return None.
 def dummy(*args, **kwargs):
     return None
+
+
+## Decorator, which allow to add function a static variables like in C++.
+#  Static variables stored in function_name.__static_vars__ object.
+# @param Name of the variable.
+# @param initial_value Value, which this variable will have initial.
+def static_var(name, initial_value=None):
+    def wrapper(func):
+        if not hasattr(func, "__static_vars__"):
+            setattr(func, "__static_vars__", type('__static_vars__', (), {})())
+        setattr(func.__static_vars__, name, initial_value)
+        return func
+    return wrapper
 
 
 ## Check, if current platform is 64 bit.
@@ -339,6 +244,9 @@ KNOWN_ARCHIVE_EXTENSIONS = [".rar", ".zip", ".tar.gz", ".tar.xz", ".tar.bz2",
 
 ## Trying to split filename to name and archive extension. If known
 #  archive extension (like .tar.gz) not found, acts like an os.path.splitext().
+#  If file name contain only archive extensions, like ".tar.gz", then all
+#  (2 in this case) extensions considers as one whole, and will be returned as
+#  (".tar.gz", "") for this case.
 # @param path Path to file.
 # @param additional_exts List of extensions, which you would like to also
 #  process in special way.
@@ -355,7 +263,9 @@ def splitext_archive(path, additional_exts=[], replace_exts=False):
         known_extensions = KNOWN_ARCHIVE_EXTENSIONS \
                            + list(additional_exts)
     for ext in known_extensions:
-        if ext == filename[len(filename)-len(ext)] and ext != filename:
+        if ext == filename[len(filename)-len(ext):]:
+            if ext == filename:
+                return ext, ""
             return os.path.join(folder, filename.replace(ext, "")), ext
     return os.path.splitext(path)
 

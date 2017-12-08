@@ -1,0 +1,45 @@
+platform-install:
+  config-name: platform_install.yml
+  script-name: platform_install.py
+update-1c-conf:
+  config-name: update_1c_conf.yml
+  script-name: update_1c_conf.py
+platform-install-with-webext:
+  config-name: platform_install_with_webext.yml
+  script-name: platform_install.py
+platform-remove:
+  config-name: platform_remove.yml
+  script-name: platform_remove.py
+create-ragent-service:
+  config-name: create_ragent_service.yml
+  script-name: service_scripts/create_ragent_service.py
+create-ras-service:
+  config-name: create_ras_service.yml
+  script-name: service_scripts/create_ras_service.py
+delete-service:
+  config-name: delete_service.yml
+  script-name: service_scripts/delete_service.py
+cluster-start:
+  config-name: cluster_start.yml
+  script-name: platform_start.py
+cluster-stop:
+  config-name: cluster_stop.yml
+  script-name: platform_stop.py
+download-release:
+  config-name: download_release.yml
+  script-name: download_release.py
+cluster-restart:
+  config-name: composite_cluster_restart.yml
+  script-name: composite_runner.py
+install-server:
+  config-name: composite_install_server.yml
+  script-name: composite_runner.py
+install-client:
+  config-name: composite_install_client.yml
+  script-name: composite_runner.py
+install-web:
+  config-name: composite_install_web.yml
+  script-name: composite_runner.py
+install-all:
+  config-name: composite_install_all.yml
+  script-name: composite_runner.py

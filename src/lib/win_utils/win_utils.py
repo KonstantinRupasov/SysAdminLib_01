@@ -191,7 +191,7 @@ def execute_wmic_get_command(alias, conditions, properties,
     res = run_cmd("wmic {} where \"{}\" get {} /Format:csv".format(alias,
                                                                    conditions,
                                                                    properties),
-                  shell=True, timeout=gv.CONFIG["timeout"])
+                  shell=True)
     # if stderr not empty or returncode is not 0, raise exception
     if len(res.stderr) > 0:
         raise AutomationLibraryError("WMIC_ERROR", res=res)
@@ -252,3 +252,26 @@ def kill_process_tree(pid):
     run_cmd("taskkill /f /pid {}".format(
         " /pid ".join([str(pid) for pid in pids])
     ),shell=True)
+
+
+def regsvr_register_dll(path):
+    try_open_file(path)
+    res = run_cmd(["regsvr32", "/s", "/i", "/n", path])
+    if res.returncode != 0:
+        raise AutomationLibraryError(
+            "CMD_RESULT_ERROR", args=res.args,
+            returncode=res.returncode,
+            stdout=res.stdout.decode(gv.ENCODING),
+            stderr=res.stderr.decode(gv.ENCODING)
+        )
+
+def regsvr_unregister_dll(path):
+    try_open_file(path)
+    res = run_cmd(["regsvr32", "/s", "/u", path])
+    if res.returncode != 0:
+        raise AutomationLibraryError(
+            "CMD_RESULT_ERROR", args=res.args,
+            returncode=res.returncode,
+            stdout=res.stdout.decode(gv.ENCODING),
+            stderr=res.stderr.decode(gv.ENCODING)
+        )

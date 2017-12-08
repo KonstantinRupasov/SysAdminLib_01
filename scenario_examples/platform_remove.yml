@@ -1,0 +1,9 @@
+version: 0.0.0.1
+external-values:
+  - version
+default-values:
+  test-mode: false
+  time-limit: 3600
+  timeout: 0
+  try-count: 1
+  setup-folder: ""

@@ -28,7 +28,15 @@ def is_function(f):
 # @param element_type Type of elements in list.
 # @return Function, which creates list with specific type of elements.
 def create_typed_list_builder(element_type):
-    f = lambda iterable: [element_type(i) for i in iterable]
+    def builder(iterable):
+        if isinstance(iterable, str) or isinstance(iterable, bytes):
+            raise TypeError(
+                "Cannot build typed list from '{}'".format(type(iterable))
+            )
+        else:
+            return [element_type(i) for i in iterable]
+
+    f = lambda iterable: builder(iterable)
     f.__name__ = "TypedList<{}>".format(element_type.__name__)
     return f
 
@@ -39,8 +47,14 @@ def create_typed_list_builder(element_type):
 # @return Function, which check, is all elements in list is instances
 #  of specific type.
 def create_typed_list_checker(element_type):
-    return lambda list: reduce(lambda acc, x: type(x) == element_type and acc,
-                               list, True)
+    def checker(lst):
+        if not isinstance(lst, list):
+            return False
+        else:
+            return reduce(lambda acc, x: type(x) == element_type and acc,
+                          lst, True)
+
+    return lambda lst: checker(lst)
 
 
 ## Return pair of functions for working on typed lists.
@@ -51,6 +65,33 @@ def create_typed_list_functions(element_type):
         create_typed_list_checker(element_type)
 
 
+## Return function which check, is all values of list is in possible content.
+# @param possible_content Possible content data (object with `in` operator).
+# @return Function which check, is all values of list is in possible content.
+def create_list_content_checker(possible_content):
+    return lambda lst: reduce(lambda acc, x: x in possible_content and acc,
+                              lst, True)
+
+
+## Return function, which create string list from string by splitting it by
+#  symbols, mentioned in separators arg.
+# @param separators List of separators.
+# @return Return function, which create string list from string by splitting it
+#  by symbols, mentioned in separators arg.
+def create_str_list_separate_builder(separators):
+    f = lambda string: create_typed_list_builder(str)(
+        string.split(separators)
+    )
+    f.__name__ = "TypedList<str>"
+    return f
+
+
+## Get value from nested dictionary by path (keys, splitted by slash).
+# @param dictionary dict object.
+# @param key_path Path to value.
+# @return Requested value.
+# @exception KeyError Path doesn't exist.
+# @exception TypeError
 def get_value_by_path(dictionary, key_path):
     temp_var = dictionary
     keys = key_path.strip("/ ").split("/") if isinstance(key_path, str) \
@@ -67,6 +108,11 @@ def get_value_by_path(dictionary, key_path):
         raise TypeError("{}: {}".format("/".join(processed_keys), str(err)))
 
 
+## Set value in nested dictionary by path (keys, splitted by slash). If path
+#  doesn't exist, all necessary keys will be created.
+# @param dictionary dict object.
+# @param key_path Path to value.
+# @param value Value to set.
 def set_value_by_path(dictionary, key_path, value):
     temp_var = dictionary
     keys = key_path.strip("/ ").split("/") if isinstance(key_path, str) \
@@ -78,6 +124,10 @@ def set_value_by_path(dictionary, key_path, value):
     temp_var[keys[-1]] = value
 
 
+## Check, is dictionary contain path.
+# @param dictionary dict object.
+# @param key_path Path to value.
+# @return True, if contain, False otherwise.
 def check_contains_by_path(dictionary, key_path):
     temp_var = dictionary
     keys = key_path.strip("/ ").split("/") if isinstance(key_path, str) \
@@ -95,10 +145,11 @@ def check_contains_by_path(dictionary, key_path):
 ## Subclass for strings, which expand filesystem paths.
 class StrPathExpanded(str):
     def __new__(cls, content):
-        var = os.path.expandvars(os.path.expanduser(content))
+        var = os.path.normpath(os.path.expandvars(os.path.expanduser(content)))
         return super().__new__(cls, var)
 
 
+## Class, which represent placeholders in configuration.
 class Placeholder:
 
     placeholder_regex = "<(?:([a-z]+):)?([^>\\0:]+)>"
@@ -118,6 +169,7 @@ class Placeholder:
             "float": float,
             "bool": bool,
             "path": StrPathExpanded,
+            "version": PlatformVersion,
         }
         groups = list(match.groups())
         if groups[0] != None and not groups[0] in types:
@@ -150,6 +202,9 @@ class Placeholder:
         return self.key == other.key and self.type == other.type
 
 
+## Function, which return iterator over complex nested data types.
+# @param data Data, over which iterate occurs.
+# @return Iterator over leaves.
 def iter_leaves(data): # -> (object, key, value)
     iterable = None
     if isinstance(data, dict):
@@ -165,6 +220,10 @@ def iter_leaves(data): # -> (object, key, value)
             yield from iter_leaves(value)
 
 
+## Make copy of input data and replace some of it leaves (which contain
+#  placeholder's string representation) with placeholders objects.
+# @param data Data, where replace should be performed.
+# @return Copy of input data with Placeholders.
 def replace_with_placeholders(data):
     data = data.copy()
     if not isinstance(data, dict) and not isinstance(data, list):
@@ -178,32 +237,43 @@ def replace_with_placeholders(data):
     return data
 
 
+## Update placeholders in destination data. Placeholder's values taken
+#  from the source data. If source and destination is the same object,
+#  copy of this data made before making changes.
+# @param src Where should values be taken (source).
+# @param dst Where placeholders should be replaced (destination).
+# @return Destination (copy of it, if src and dst is the same object).
 def update_data_with_placeholders(src, dst):
     # if src and dst is the SAME object, copy src to dst
     if dst is src:
         dst = src.copy()
     dst = replace_with_placeholders(dst)
     while True:
-        nested_placeholders_found = False
+        changes_made = False
         for obj,key,value in iter_leaves(dst):
             if isinstance(value, Placeholder):
-                # this try block necessary because we allow to dangle
+                # this try block necessary because we allow dangle
                 # Placeholder objects
                 try:
                     src_value = get_value_by_path(src, value.key)
                 except:
                     continue
-                # try to convert new value to Placeholder
+                # try to convert new value to Placeholder and compare,
                 try:
+                    old_value = obj[key]
                     obj[key] = Placeholder(value.type(src_value))
-                    nested_placeholders_found = True
+                    if old_value != obj[key]:
+                        changes_made = True
                 # if failed, just set new value
                 except:
                     obj[key] = value.type(src_value)
-        if not nested_placeholders_found:
+                    changes_made = True
+        if not changes_made :
             return dst
 
 
+## Class, which represent configuration value description. Instances of
+#  this class used in *Scenario.validate_config() methods.
 class ConfigValueType:
     def __init__(self, key_path, type_checker, type_builder=None,
                  valid_values=None, default_allowed=False, default_value=None):
@@ -248,6 +318,7 @@ class ConfigValueType:
         return self.default_value
 
 
+## Class, which represent scenario configuration.
 class ScenarioConfiguration:
     def __init__(self, yaml_data):
         self.raw_data = yaml_data.copy()
@@ -267,42 +338,15 @@ class ScenarioConfiguration:
             self.composite_scenario_data = replace_with_placeholders(
                 self.raw_data["scenario"]
             )
-            # make sure that all steps have proper type (dict or str)
-            for step in self.composite_scenario_data:
-                name = step["name"]
-                if "command" not in step and "command-string" in step:
-                    pass
-                    # global_logger.warning(
-                    #     message="composite scenario step is set as string, "
-                    #     "which is discouraged. It will be launched as-is",
-                    #     step_name=name
-                    # )
-                elif "command" not in step and "command-string" not in step:
-                    raise AutomationLibraryError(
-                        "ARGS_ERROR", "composite scenario step have invalid "
-                        "type", step_name=name
-                    )
         else:
             self.composite = False
             self.composite_scenario_data = None
         # if rollback-scenario presented, set it, otherwise set None
-        if "rollback-scenario" in self.raw_data:
-            self.rollback_scenario = self.raw_data["rollback-scenario"]
-            if isinstance(self.rollback_scenario, str):
-                pass
-                # global_logger.warning(
-                #     message="rollback-scenario is set as string, which is "
-                #     "discouraged. In case if rollback will be needed, it will "
-                #     "be launched as-is",rollback_scenario=self.rollback_scenario
-                # )
-            elif not isinstance(self.rollback_scenario, dict):
+        if "rollback" in self.raw_data:
+            self.rollback_scenario = self.raw_data["rollback"]
+            if not isinstance(self.rollback_scenario, dict):
                 raise AutomationLibraryError(
-                    "ARGS_ERROR", "rollback-scenario have invalid type"
-                )
-            elif "command" not in self.rollback_scenario:
-                raise AutomationLibraryError(
-                    "ARGS_ERROR", "rollback-scenario set as dictionary, "
-                    "but doesn't have 'command' value"
+                    "ARGS_ERROR", "rollback block have invalid type"
                 )
             else:
                 self.rollback_scenario = replace_with_placeholders(
@@ -350,7 +394,7 @@ class ScenarioConfiguration:
                     raise AutomationLibraryError("OPTION_NOT_FOUND",
                                                  key=ext_key)
         for key, value in cmd_args.items():
-            self[key] = value
+            set_value_by_path(self.scenario_context, key, value)
         self.update_inner_data()
 
     def __repr__(self):
@@ -404,3 +448,18 @@ class ScenarioConfiguration:
                         key=obj.key_path, current_value=self[obj.key_path],
                         valid_values=obj.valid_values
                     )
+
+    def is_complete(self):
+        for obj, key, val in iter_leaves(self.scenario_context):
+            if isinstance(val, Placeholder):
+                return False
+        if isinstance(self.composite_scenario_data, list) \
+           or isinstance(self.composite_scenario_data, dict):
+            for obj, key, val in iter_leaves(self.composite_scenario_data):
+                if isinstance(val, Placeholder):
+                    return False
+        if isinstance(self.rollback_scenario, dict):
+            for obj, key, val in iter_leaves(self.rollback_scenario):
+                if isinstance(val, Placeholder):
+                    return False
+        return True

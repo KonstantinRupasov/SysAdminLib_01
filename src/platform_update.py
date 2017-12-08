@@ -18,6 +18,7 @@ class PlatformUpdateScenario:
     def __init__(self, config, **kwargs):
         self.extracted_packages = list()
         self.extracted_files = list()
+        self.distr_downloaded = False
         self.Platform1CUpdater = None
         self.platform_updater = None
         l = LogFunc(message="initializing PlatformUpdateScenario object")
@@ -69,10 +70,13 @@ class PlatformUpdateScenario:
     # @exception AutomationLibraryError("OPTION_NOT_FOUND")
     def validate_config(self):
         validate_data = [
-            ["server-role", str, str, ["all", "app", "web"]],
+            # ["server-role", str, str, ["all", "app", "web"]],
+            ["platform-modules", create_typed_list_checker(str),
+             create_str_list_separate_builder(","),
+             create_list_content_checker(["all", "app", "web", "client"])],
             ["test-mode", bool],
-            ["try-count", int],
-            ["timeout", int],
+            # ["try-count", int],
+            # ["timeout", int],
             ["time-limit", int],
             ["os-type", str, str, ["Windows", "Linux-deb", "Linux-rpm"]],
             ["clean-snccntx", bool],
@@ -80,8 +84,12 @@ class PlatformUpdateScenario:
             ["cluster-folder", StrPathExpanded],
             ["distr-folder", StrPathExpanded],
             ["download-tmp-folder", StrPathExpanded],
+            ["standalone", bool]
         ]
-        if self.config["server-role"] in ["app", "all"]:
+        self.config.validate(validate_data)
+        # ie if app or all in platform-modules
+        if not set(self.config["platform-modules"])\
+           .isdisjoint(set(["app", "all"])):
             validate_data += [
                 ["service-1c/name", str],
                 ["service-1c/login", str],
@@ -97,27 +105,6 @@ class PlatformUpdateScenario:
                 ]
         self.config.validate(validate_data)
 
-    ## Wrapper for retry_func, which passes automatically self, timeout and
-    #  try_count
-    # @param self Pointer to object.
-    # @param func Function to execute.
-    # @param *args Positional arguments for func.
-    # @param **kwargs Named arguments for func.
-    def retry_self(self, func, *args, **kwargs):
-        return retry_func(func, args=(self, ) + args, kwargs=kwargs,
-                          timeout=self.config["timeout"],
-                          try_count=self.config["try-count"])
-
-    ## Wrapper for retry_func, which passes automatically timeout and try_count
-    # @param self Pointer to object.
-    # @param func Function to execute.
-    # @param *args Positional arguments for func.
-    # @param **kwargs Named arguments for func.
-    def retry(self, func, *args, **kwargs):
-        return retry_func(func, args=args, kwargs=kwargs,
-                          timeout=self.config["timeout"],
-                          try_count=self.config["try-count"])
-
     ## Copy files from source do destination. It is internally have retries.
     # @param self Pointer to object.
     # @param src Source of data (path).
@@ -130,12 +117,10 @@ class PlatformUpdateScenario:
             res = None
             try:
                 if self.config["os-type"] == "Windows":
-                    res = run_cmd(["copy", src, dst], shell=True,
-                                  timeout=self.config["timeout"])
+                    res = run_cmd(["copy", src, dst], shell=True)
                 else:
                     res = run_cmd(" ".join(["cp", "-r", src, dst]),
-                                  shell=True,
-                                  timeout=self.config["timeout"])
+                                  shell=True)
             # if exception raised or returncode is not 0, then try again
             # if attempts left, else raise exception
             except Exception as err:
@@ -185,6 +170,7 @@ class PlatformUpdateScenario:
         self.config["update-type"] = update_type
         # update global CONFIG variable
         gv.CONFIG = self.config
+        self.distr_downloaded = True
 
     ## Check, if services started.
     # @param self Pointer to object.
@@ -244,15 +230,42 @@ class PlatformUpdateScenario:
                     procs=[proc[0] for proc in cluster_folder_users]
                 )
 
+    def _check_cluster_started(self):
+        self.check_services_state()
+        self.check_processes_state()
+
+    def _check_cluster_folder_not_used(self):
+        pass
+
+    def tests(self):
+        l = LogFunc(message="Running tests")
+        # (name, function, standalone_only)
+        avaliable_tests = [
+            ("cluster-started", self._check_cluster_started, True),
+            ("cluster-folder-not-used", self._check_cluster_folder_not_used,
+             False),
+            ("test-install-permissions",
+             self.platform_updater.test_install_permissions, False),
+            ("test-sc-permissions",
+             self.platform_updater.test_sc_permissions, False),
+            ("test-old-version", self.platform_updater.test_old_version, False),
+            # this 2 goes last cuz they can take much time
+            ("get-distr", self.get_distr, True),
+            # this test is depend on previous, cuz what we should test,
+            # if there is no distr, right?
+            ("test-update", self.platform_updater.test_update, True),
+        ]
+        # execute tests
+        for name, test, standalone_only in avaliable_tests:
+            if not self.config["standalone"] and standalone_only:
+                global_logger.info(message="Omitting test", name=name)
+                continue
+            test()
+
     ## Execute scenario.
     # @param self Pointer to object.
     def execute(self):
-        # 1. Make sure that services and processes not started.
-        self.check_services_state()
-        self.check_processes_state()
-        # 2. Obtain distr.
-        self.get_distr()
-        # 3. Create and set up Platform1CUpdater object.
+        # 1. Create and set up Platform1CUpdater object.
         self.Platform1CUpdater = None
         if self.config["os-type"] == "Windows":
             from lib.win_utils.platform_updater import Platform1CUpdater
@@ -261,13 +274,28 @@ class PlatformUpdateScenario:
             from lib.linux_utils.platform_updater import Platform1CUpdater
             self.Platform1CUpdater = Platform1CUpdater
         self.platform_updater = self.Platform1CUpdater(self.config)
-        # 4. Test update.
-        self.platform_updater.test_update()
-        if self.config["test-mode"] is True:
-            global_logger.info("Test mode completed successfully")
-            return
-        # 5. Perform installation.
-        self.platform_updater.update()
+        # if standalone, run both test mode and real update
+        if self.config["standalone"]:
+            # make tests
+            self.tests()
+            if self.config["test-mode"] is True:
+                global_logger.info("Test mode completed successfully")
+                return
+            # perform installation
+            if not self.distr_downloaded:
+                self.get_distr()
+            self.platform_updater.update()
+        else:
+            # here, if test-mode set, run ONLY tests
+            if self.config["test-mode"] is True:
+                self.tests()
+                global_logger.info("Test mode completed successfully")
+                return
+            # if test mode not set, run update without tests
+            if not self.distr_downloaded:
+                self.get_distr()
+            self.platform_updater.update()
+
 
 
 
@@ -281,8 +309,20 @@ def platform_update_scenario():
         config = ScenarioConfiguration(data)
         cmd_args = bootstrap.parse_cmd_args(sys.argv[2:])
         config.add_cmd_args(cmd_args[1], True)
+        if "composite-scenario-name" in config:
+            global_logger.info(
+                message="Execute as part of composite scenario",
+                composite_scenario_name=config["composite-scenario-name"]
+            )
+            config["standalone"] = False
+        else:
+            global_logger.info(
+                message="Execute as standalone scenario"
+            )
+            config["standalone"] = True
         bootstrap.set_debug_values(cmd_args[1])
         scenario = PlatformUpdateScenario(config)
+
         scenario.execute()
     # handle errors (ie log them and set return code)
     except AutomationLibraryError as err:

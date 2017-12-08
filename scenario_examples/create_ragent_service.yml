@@ -1,0 +1,18 @@
+version: 0.0.0.1
+external-values:
+  - name
+  - username
+  - cluster-folder
+default-values:
+  test-mode: false
+  time-limit: 3600
+  timeout: 0
+  try-count: 1
+  description: 1C:Enterprise 8 Server Agent
+  port: 1540
+  regport: 1541
+  range: 1560:1591
+  cluster-debug: false
+  # this 2 value uses only on Windows
+  password: ""
+  setup-folder: C:\Platform1C\Actual

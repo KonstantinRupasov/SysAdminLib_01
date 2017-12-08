@@ -43,8 +43,8 @@ class ExecuteEpfScenario:
         validate_data = [
             ["test-mode", bool],
             ["try-count", int],
-            ["timeout", int],
-            ["time-limit", int],
+            # ["timeout", int],
+            # ["time-limit", int],
             ["os-type", str, str, ["Windows", "Linux-deb", "Linux-rpm"]],
             ["lang", str, str, gv.LANGS],
             ["epf-path", StrPathExpanded],
@@ -83,7 +83,7 @@ class ExecuteEpfScenario:
                     str(self.config["pwd"])]
         # execute epf
         try:
-            res = run_cmd(cmd, timeout=self.config["timeout"])
+            res = run_cmd(cmd)
         except sp.TimeoutExpired:
             raise AutomationLibraryError("TIMEOUT_ERROR")
         else:
@@ -104,6 +104,17 @@ def execute_epf_scenario():
         cmd_args = bootstrap.parse_cmd_args(sys.argv[2:])
         config.add_cmd_args(cmd_args[1], True)
         bootstrap.set_debug_values(cmd_args[1])
+        if "composite-scenario-name" in config:
+            global_logger.info(
+                message="Execute as part of composite scenario",
+                composite_scenario_name=config["composite-scenario-name"]
+            )
+            config["standalone"] = False
+        else:
+            global_logger.info(
+                message="Execute as standalone scenario"
+            )
+            config["standalone"] = True
         scenario = ExecuteEpfScenario(config)
         # execute scenario "try-count" times and store return code
         for attempt in range(config["try-count"] - 1, -1, -1):

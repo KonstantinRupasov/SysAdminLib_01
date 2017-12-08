@@ -11,6 +11,7 @@ from lib.common.config import *
 from lib.utils import *
 from lib.utils.cmd import *
 
+
 class Update1CConfScenario:
     ## Constructor.
     # @param self Pointer to object.
@@ -43,8 +44,8 @@ class Update1CConfScenario:
     def validate_config(self):
         validate_data = [
             ["test-mode", bool],
-            ["try-count", int],
-            ["timeout", int],
+            # ["try-count", int],
+            # ["timeout", int],
             ["time-limit", int],
             ["os-type", str, str, ["Windows", "Linux-deb", "Linux-rpm"]],
             ["srvr", str],
@@ -104,7 +105,7 @@ class Update1CConfScenario:
                     str(self.config["pwd"])]
         # execute cmd
         try:
-            res = run_cmd(cmd, timeout=self.config["timeout"])
+            res = run_cmd(cmd)
         except sp.TimeoutExpired:
             raise AutomationLibraryError("TIMEOUT_ERROR")
         else:
@@ -125,7 +126,7 @@ class Update1CConfScenario:
                     str(self.config["pwd"])]
         # execute cmd
         try:
-            res = run_cmd(cmd, timeout=self.config["timeout"])
+            res = run_cmd(cmd)
         except sp.TimeoutExpired:
             raise AutomationLibraryError("TIMEOUT_ERROR")
         else:
@@ -145,6 +146,17 @@ def update_1c_conf_scenario():
         cmd_args = bootstrap.parse_cmd_args(sys.argv[2:])
         config.add_cmd_args(cmd_args[1], True)
         bootstrap.set_debug_values(cmd_args[1])
+        if "composite-scenario-name" in config:
+            global_logger.info(
+                message="Execute as part of composite scenario",
+                composite_scenario_name=config["composite-scenario-name"]
+            )
+            config["standalone"] = False
+        else:
+            global_logger.info(
+                message="Execute as standalone scenario"
+            )
+            config["standalone"] = True
         scenario = Update1CConfScenario(config)
         scenario.execute()
     # handle errors (ie log them and set return code)

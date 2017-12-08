@@ -76,4 +76,5 @@ def get_all_child_procs(parent_pid):
 # @param Process PID.
 def kill_process_tree(pid):
     pids = [pid, ] + get_all_child_procs(pid)
-    run_cmd("kill -9 {}".format(" ".join([str(pid) for pid in pids])), shell=True)
+    run_cmd("kill -9 {}".format(" ".join([str(pid) for pid in pids])),
+            shell=True)

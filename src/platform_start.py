@@ -20,6 +20,17 @@ def platform_start_scenario():
         cmd_args = bootstrap.parse_cmd_args(sys.argv[2:])
         config.add_cmd_args(cmd_args[1], True)
         bootstrap.set_debug_values(cmd_args[1])
+        if "composite-scenario-name" in config:
+            global_logger.info(
+                message="Execute as part of composite scenario",
+                composite_scenario_name=config["composite-scenario-name"]
+            )
+            config["standalone"] = False
+        else:
+            global_logger.info(
+                message="Execute as standalone scenario"
+            )
+            config["standalone"] = True
         scenario = PlatformCtlScenario(config, "start")
         scenario.execute()
     # handle errors (ie log them and set return code)

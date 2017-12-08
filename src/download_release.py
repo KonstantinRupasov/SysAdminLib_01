@@ -28,7 +28,6 @@ class DownloadReleaseScenario:
         self.config = config
         # set global test mode variable
         gv.TEST_MODE = self.config["test-mode"]
-
         # validate configuration
         self.validate_config()
         # set global CONFIG variable
@@ -59,6 +58,8 @@ class DownloadReleaseScenario:
         self.downloaded_file = None
         self.extracted_files = None
         self.extracted_path = None
+        self.load_url = None
+        self.logged_in = False
 
     ## Validating config.
     # @param self Pointer to object.
@@ -67,8 +68,8 @@ class DownloadReleaseScenario:
     def validate_config(self):
         validate_data = [
             ["test-mode", bool],
-            ["try-count", int],
-            ["timeout", int],
+            # ["try-count", int],
+            # ["timeout", int],
             ["time-limit", int],
             ["download-folder", StrPathExpanded],
             ["tmp-folder", StrPathExpanded],
@@ -76,7 +77,9 @@ class DownloadReleaseScenario:
             ["username", str],
             ["password", str],
             ["additional-data", dict],
+            ["standalone", bool],
         ]
+        self.config.validate(validate_data)
         if self.config["download-type"] == "url":
             validate_data += [
                 ["additional-data/url", str],
@@ -136,6 +139,7 @@ class DownloadReleaseScenario:
         if len(errors) > 0:
             raise AutomationLibraryError("URL_ERROR", "Login failed",
                                          error=str_tag(errors[0]))
+        self.logged_in = True
 
     ## Retrieve URL for downloading 1C:Enterprise Platform of specified version,
     #  arch and OS type.
@@ -293,30 +297,30 @@ class DownloadReleaseScenario:
         link = self.find_link(tag_type, regex_filter, func_filter)
         self.browser.follow_link(link)
 
-    ## Download product release by data.
+    ## Set self.load_url by supplied data.
     # @param self Pointer to object.
-    def download_release_by_data(self):
+    def set_release_url_by_data(self):
         if self.config["release-type"] == "platform":
-            url = self.get_platform_url_by_data(
+            self.load_url = self.get_platform_url_by_data(
                 self.config["additional-data"]["version"],
                 self.config["additional-data"]["arch"],
                 self.config["additional-data"]["os-type"],
                 self.config["additional-data"]["distr-type"]
             )
         elif self.config["release-type"] == "postgres":
-            url = self.get_postgres_url_by_data(
+            self.load_url = self.get_postgres_url_by_data(
                 self.config["additional-data"]["version"],
                 self.config["additional-data"]["arch"],
                 self.config["additional-data"]["os-type"],
             )
         elif self.config["release-type"] == "configuration":
-            url = self.get_configuration_url_by_data(
+            self.load_url = self.get_configuration_url_by_data(
                 self.config["additional-data"]["name"],
                 self.config["additional-data"]["version"],
                 self.config["additional-data"]["distr-type"],
             )
-        return download_file_from_url_session(self.browser.session, url,
-                                              self.config["tmp-folder"])
+        # return download_file_from_url_session(self.browser.session, url,
+        #                                       self.config["tmp-folder"])
 
     ## Process downloaded and extracted files, ie deduce additional data, if
     #  necessary, perform installation and put them in the given path.
@@ -359,30 +363,82 @@ class DownloadReleaseScenario:
             copy_file_or_directory(self.extracted_path,
                                    self.config["download-folder"])
 
+    def _check_folders(self):
+        pass
+
+    def _try_to_find_and_check_url(self):
+        if self.config["download-type"] == "data":
+            self.set_release_url_by_data()
+        else:
+            self.load_url = self.config["additional-data"]["url"]
+        # check that this url return correct code
+        response = self.browser.session.get(self.load_url, stream=True)
+        if not response.ok:
+            raise AutomationLibraryError(
+                "URL_ERROR", "response status code is not good",
+                response_code=response.status_code,
+                url=response.url
+            )
+
+    def tests(self):
+        l = LogFunc(message="Running tests")
+        avaliable_tests = [
+            ("check-folders", self._check_folders, False),
+            ("try-login", self.login_to_portal, False),
+            ("find-and-check-url", self._try_to_find_and_check_url, False),
+        ]
+        # execute tests
+        for name, test, standalone_only in avaliable_tests:
+            if not self.config["standalone"] and standalone_only:
+                global_logger.info(message="Omitting test", name=name)
+                continue
+            test()
 
     ## Execute scenario.
     # @param self Pointer to object.
     def execute(self):
-        ### 0. Login to releases portal. ###
-        self.login_to_portal()
-        l = LogFunc(message="Downloading release")
-        ### 1. Download file ###
-        if self.config["download-type"] == "data":
-            self.downloaded_file = self.download_release_by_data()
-        elif self.config["download-type"] == "url":
-            self.downloaded_file = download_file_from_url_session(
-                self.browser.session,
-                self.config["additional-data"]["url"],
-                self.config["tmp-folder"]
-            )
+        if self.config["standalone"]:
+            self.tests()
+            if self.config["test-mode"] is True:
+                global_logger.info("Test mode completed successfully")
+                return
         else:
-            raise AutomationLibraryError("ARGS_ERROR", "wrong download type",
-                                         value=self.config["download-type"])
+            if self.config["test-mode"] is True:
+                self.tests()
+                global_logger.info("Test mode completed successfully")
+                return
+        # real run
+        # log in
+        if not self.logged_in:
+            self.login_to_portal()
+        if self.config["download-type"] == "data":
+            if self.load_url is None:
+                self.set_release_url_by_data()
+        else:
+            self.load_url = self.config["additional-data"]["url"]
+        ### 1. Download file ###
+        self.downloaded_file = download_file_from_url_session(
+            self.browser.session,
+            self.load_url,
+            self.config["tmp-folder"]
+        )
+        # ### 1. Download file ###
+        # if self.config["download-type"] == "data":
+        #     self.downloaded_file = self.download_release_by_data()
+        # elif self.config["download-type"] == "url":
+        #     self.downloaded_file = download_file_from_url_session(
+        #         self.browser.session,
+        #         self.config["additional-data"]["url"],
+        #         self.config["tmp-folder"]
+        #     )
+        # else:
+        #     raise AutomationLibraryError("ARGS_ERROR", "wrong download type",
+        #                                  value=self.config["download-type"])
         ### 2. Extract file (or just move, if its not archive) ###
         # get file name and file extension
         filename, ext = splitext_archive(self.downloaded_file)
         self.extracted_path = os.path.join(self.config["tmp-folder"],
-                                      "extracted")
+                                           "extracted")
         # create extracted_path, if it not exists
         if not os.path.exists(self.extracted_path):
             os.makedirs(self.extracted_path)
@@ -390,7 +446,6 @@ class DownloadReleaseScenario:
         if ext in [".rar", ".tar.gz", ".tar", ".tar.bz2", ".tar.xz", ".zip"]:
             self.extracted_files = unpack_archive(self.downloaded_file,
                                                   self.extracted_path)
-
         # if not, just copy it
         else:
             copy_file_or_directory(self.downloaded_file, self.extracted_path)
@@ -587,6 +642,17 @@ def download_release_scenario():
         cmd_args = bootstrap.parse_cmd_args(sys.argv[2:])
         config.add_cmd_args(cmd_args[1], True)
         bootstrap.set_debug_values(cmd_args[1])
+        if "composite-scenario-name" in config:
+            global_logger.info(
+                message="Execute as part of composite scenario",
+                composite_scenario_name=config["composite-scenario-name"]
+            )
+            config["standalone"] = False
+        else:
+            global_logger.info(
+                message="Execute as standalone scenario"
+            )
+            config["standalone"] = True
         scenario = DownloadReleaseScenario(config)
         scenario.execute()
     # handle errors (ie log them and set return code)

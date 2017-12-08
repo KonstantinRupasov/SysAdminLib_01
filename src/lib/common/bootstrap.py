@@ -137,6 +137,19 @@ def parse_cmd_args(s=None):
     return args
 
 
+def get_pid_filename(pid):
+    return os.path.join(gv.PID_PATH, "AutomationLibrary_{}.pid".format(pid))
+
+
+def get_log_filename(script_name, pid, log_folder, timestamp=None):
+    if timestamp is None:
+        timestamp = datetime.datetime.now().strftime("%y%m%d_%H%M%S")
+    return os.path.join(
+            gv.PID_PATH, log_folder, script_name + "_" + str(timestamp)
+            + "_" + str(pid) + ".log"
+        )
+
+
 ## Execute scenario.
 #
 # @param func Function, which represent scenario.
@@ -160,8 +173,7 @@ def main(func, script_name, script_args=(), script_kwargs={}):
                           script_kwargs={}):
         # setting up pid file
         pid = os.getpid()
-        pid_filename = os.path.join(gv.PID_PATH,
-                                    "AutomationLibrary_{}.pid".format(pid))
+        pid_filename = get_pid_filename(pid)
         pid_file = open(pid_filename, "w")
         pid_file.write(str(pid))
         pid_file.close()
@@ -169,11 +181,9 @@ def main(func, script_name, script_args=(), script_kwargs={}):
         log_folder = 'script_logs'
         if not os.path.exists(log_folder):
             os.makedirs(log_folder)
-        global_logger.add_file_handler(os.path.join(
-            gv.PID_PATH, log_folder, script_name + "_" + str(
-                datetime.datetime.now().strftime("%y%m%d_%H%M%S"))
-            + "_" + str(os.getpid()) + ".log"
-        ))
+        global_logger.add_file_handler(
+            get_log_filename(script_name, pid, log_folder)
+        )
         global_logger.add_stream_handler(sys.stdout)
         # execute function, measure time and exit
         res = func(*script_args, **script_kwargs)

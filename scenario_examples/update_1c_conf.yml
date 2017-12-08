@@ -1,0 +1,11 @@
+version: 0.0.0.1
+external-values:
+  - srvr
+  - ib
+  - cf-name
+  - usr
+  - pwd
+default-values:
+  test-mode: false
+  time-limit: 3600
+  lang: ru

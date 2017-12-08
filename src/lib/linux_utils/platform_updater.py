@@ -3,8 +3,9 @@
 import sys
 
 from .linux_utils import *
-from .service import SystemdService
+from .service import *
 from ..utils import *
+from ..utils.const import ALL, SERVER, WEB_EXTENSION, CLIENT
 
 
 class Package1C:
@@ -14,12 +15,12 @@ class Package1C:
     # @param name Middle part of name (ie without prefix).
     # @param version Package version. Can be string or
     #  lib::utils::main::PlatformVersion object.
-    # @param bitness Package bitness (64 or 32).
+    # @param arch Package arch (64 or 32).
     # @param prefix Prefix to name. By default:
     #  "1c-enterprise{PLATFORM_MAJOR_VERSION}{PLATFORM_MINOR_VERSION}-"
     # @param dir_path Path to package (without name).
     #  If not supplied, then package cannot be installed.
-    def __init__(self, os_type, name, version, bitness,
+    def __init__(self, os_type, name, version, arch,
                  dir_path=None, prefix=None):
         # choose module with package manager related functions
         if os_type == "Linux-deb":
@@ -33,11 +34,11 @@ class Package1C:
                                          value=os_type)
         # setting package name
         self.pkg_name = self.pm_module.PackageName(prefix, name, version,
-                                                   bitness)
+                                                   arch)
         # setting path to package
         if dir_path is not None:
             self.path = os.path.join(dir_path, str(self.pkg_name))
-            try_open_file(self.path)
+            # try_open_file(self.path)
         else:
             self.path = None
 
@@ -84,8 +85,7 @@ class Platform1CUpdater:
     # @param self Pointer to object.
     # @param config common::config::Configuration object. If omitted, then
     #  common::global_vars::CONFIG used.
-    def __init__(self, config=gv.CONFIG, **kwargs):
-        self.distr_path = config["download-tmp-folder"]
+    def __init__(self, config=gv.CONFIG, uninstall_only = False, **kwargs):
         self.config = config
         # setting pm_module (deb or rpm)
         if self.config["os-type"] == "Linux-deb":
@@ -97,92 +97,90 @@ class Platform1CUpdater:
         else:
             raise AutomationLibraryError("ARGS_ERROR", "wrong os_type",
                                          value=self.config["os-type"])
+        if uninstall_only:
+            return
+        self.distr_path = config["download-tmp-folder"]
+        try:
+            self.config["new-version"] = self.config["version"]
+        except:
+            pass
         # setting packages
         package_dict = {
-            "all": ["common", "server", "ws", "client"],
-            "app": ["common", "server", "client"],
-            "web": ["common", "ws"],
+            SERVER: ["server", ],
+            WEB_EXTENSION: ["ws", ],
+            CLIENT: ["client", "server"],
         }
+        packages_names = ["common", ]
+        # if all in platform-modules, just add all from package_dict
+        if ALL in self.config["platform-modules"]:
+            for _, v in package_dict.items():
+                packages_names += v
+        # otherwise just iterate over list of platform modules and add necessary
+        # names
+        else:
+            for module in self.config["platform-modules"]:
+                packages_names += package_dict[module]
+        # make sure that all packages will appear only once
+        packages_names = list(set(packages_names))
+        # check new version
         if len(config["new-version"].version) < 3:
             raise AutomationLibraryError("ARGS_ERROR", "incorrect new-version",
                                          current_version=config["new-version"])
         self.packages = [
             Package1C(
                 config["os-type"], package_name, config["new-version"],
-                config["bitness"], self.distr_path
-            ) for package_name in package_dict[self.config["server-role"]]
+                config["arch"], self.distr_path
+            ) for package_name in packages_names
         ]
-        # if found language, which is not EN or RU, and -nls packages
+        # if found language, which is not EN or RU, add -nls packages
         # to installation
         if "languages" in self.config:
             langs = self.config["languages"].upper().split(",")
             for l in langs:
-                if l not in ["RU", "EN"]:
+                if l.strip(" ,") not in ["RU", "EN"]:
                     temp_packages = []
-                    for package in package_dict[self.config["server-role"]]:
+                    for package in packages_names:
                         temp_packages.append(Package1C(
                             config["os-type"],
                             package + "-nls", config["new-version"],
-                            config["bitness"], self.distr_path
+                            config["arch"], self.distr_path
                         ))
                     self.packages += temp_packages
                     break
         global_logger.info("Packages to update", value=self.packages)
 
+
+    ## Testing service control permissions.
+    # @param self Pointer to object.
+    def test_sc_permissions(self):
+        SystemdService.test_sc_permissions()
+
     ## Testing installation permissions.
     # @param self Pointer to object.
-    def test_permissions(self):
+    def test_install_permissions(self):
         l = LogFunc(message="testing permissions")
         self.pm_module.test_permissions()
 
     ## Install services.
     # @param self Pointer to object.
     def install_services(self):
-        l = LogFunc(message="Installing services")
-        # building path to configuration for RAS and ragent
-        srv1cv8_config_name = "/etc/init.d/srv1cv{}{}" if self.config["os-type"]\
-                              == "Linux-deb" else "/etc/sysconfig/srv1cv{}{}"
-        srv1cv8_config_name = srv1cv8_config_name.format(
-            self.config["new-version"][0], self.config["new-version"][1]
-        )
+        l = LogFunc(message="Install services")
         # building platform install folder
-        platform_install_folder = "/opt/1C/v8.3/{}".format(
-            "x86_64" if self.config["bitness"] == 64 else "i386"
+        platform_folder = "/opt/1C/v{}.{}/{}".format(
+            self.config["new-version"][0], self.config["new-version"][1],
+            "x86_64" if self.config["arch"] == 64 else "i386"
         )
-        # installing ragent service
-        srv1cv8 = SystemdService.create_systemd_service_from_example(
-            os.path.abspath(
-                os.path.join(os.path.dirname(sys.argv[0]),
-                             "srv1cv8" + ".service")
-            ),
-            {
-                "ragent_path_placeholder": platform_install_folder,
-                "environment_file_placeholder": srv1cv8_config_name,
-                "ld_path_placeholder": platform_install_folder,
-                "user_placeholder": self.config["service-1c"]["login"],
-                "cluster_folder_placeholder": self.config["cluster-folder"],
-                "debug_placeholder": "-debug" if self.config["cluster-debug"] \
-                else ""
-            },
-            self.config["service-1c"]["name"]
+        install_service_1c(
+            self.config["service-1c"]["name"], platform_folder,
+            self.config["service-1c"]["login"],
+            self.config["service-1c"]["password"],
+            self.config["cluster-folder"],
         )
-        srv1cv8.connect()
-        # installing RAS service
-        srv1cv8_ras = SystemdService.create_systemd_service_from_example(
-            os.path.abspath(
-                os.path.join(os.path.dirname(sys.argv[0]),
-                             "srv1cv8-ras" + ".service")
-            ),
-            {
-                "ras_path_placeholder": platform_install_folder,
-                "ras_port_placeholder": self.config["ras"]["port"],
-                "environment_file_placeholder": srv1cv8_config_name,
-                "ld_path_placeholder": platform_install_folder,
-                "user_placeholder": self.config["ras"]["login"],
-            },
-            self.config["ras"]["name"]
+        install_ras(
+        self.config["ras"]["name"], platform_folder,
+            self.config["ras"]["login"],
+            self.config["ras"]["password"]
         )
-        srv1cv8_ras.connect()
 
     ## Test update (ie is packages is correct, can be installed etc).
     # @param self Pointer to object.
@@ -191,10 +189,7 @@ class Platform1CUpdater:
         for package in self.packages:
             package.install(True, True)
 
-    ## Uninstall old version of platform.
-    # @param self Pointer to object.
-    def uninstall_old(self):
-        l = LogFunc(message="Uninstalling old version of platform")
+    def test_old_version(self):
         # get list of installed platform packages
         packages = self.pm_module.get_installed_platform_packages()
         # generate list of installed package versions
@@ -225,9 +220,25 @@ class Platform1CUpdater:
                 )
             else:
                 global_logger.info(message="Nothing to uninstall")
+                raise AutomationLibraryError("OK")
+    ## Uninstall old version of platform.
+    # @param self Pointer to object.
+    def uninstall_old(self):
+        l = LogFunc(message="Uninstall old version of platform")
+        # get list of installed platform packages
+        packages = self.pm_module.get_installed_platform_packages()
+        # test_old_versions
+        try:
+            self.test_old_version()
+        except AutomationLibraryError as err:
+            # if returned OK code, it means that no packages found
+            if err.num_code == AutomationLibraryError("OK").num_code:
+                print("OK")
                 return
+            else:
+                raise
+        # uninstall packages
         self.pm_module.uninstall_packages(packages)
-
 
     ## Update platform.
     # @param self Pointer to object.
@@ -242,12 +253,13 @@ class Platform1CUpdater:
                  "{}".format(self.config["service-1c"]["login"]),
                  self.config["cluster-folder"]])
         # 1. Install new version.
-        install_log = LogFunc(message="Installing platform via packages")
+        install_log = LogFunc(message="Install platform")
         for package in self.packages:
             package.install(False, True)
         del install_log
         # 2. Install services.
-        if self.config["server-role"] in ["all", "app"]:
+        if not set(self.config["platform-modules"])\
+           .isdisjoint(set([SERVER, ALL])):
             self.install_services()
             # disable srv1cv83
             run_cmd(["update-rc.d", "srv1cv{}{}".format(
@@ -256,9 +268,40 @@ class Platform1CUpdater:
             ), "disable"])
         self.clean_temps()
         # 3. Copy web-extension.
-        if self.config["server-role"] in ["all", "web"]:
+        if not set(self.config["platform-modules"])\
+           .isdisjoint(set([ALL, WEB_EXTENSION])):
             copy_web_library(self.config["web-library"]["path"],
                              self.config["setup-folder"])
+
+    def update2(self):
+        l = LogFunc(message="Install platform")
+        for package in self.packages:
+            package.install(False, True)
+
+    def copy_web_library2(self):
+        dll_table = {
+            "apache2.0": "wsapch2.so",
+            "apache2.2": "wsap22.so",
+            "apache2.4": "wsap24.so",
+        }
+        head, tail = os.path.split(self.config["web-extension/path"])
+        if not os.path.exists(head):
+            os.makedirs(head)
+        res = run_cmd(["find", "/opt/1C", "-iname",
+                       dll_table[self.config["web-extension/web-server"]]])
+        if res.returncode:
+            raise AutomationLibraryError(
+                "INSTALLATION_ERROR", "Cannot find web extension library",
+                library_name=dll_table[
+                    self.config["web-extension/web-server"]
+                ]
+            )
+        src = res.stdout.decode(gv.ENCODING).split()[0]
+        try:
+            shutil.copy2(src, self.config["web-extension/path"])
+        except shutil.SameFileError:
+            pass
+
 
     ## Clean temps (snccntx* and *.pfl).
     # @param self Pointer to object.
